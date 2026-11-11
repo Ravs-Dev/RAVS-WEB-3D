@@ -84,7 +84,7 @@ import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/
 
   const sectionIds = [
     "#intro", "#toolbox", "#intuitive", "#composition", "#scroll",
-    "#staggering", "#svg-utils", "#draggable", "#clockwork",
+    "#staggering", "#svgUtils", "#draggable", "#clockwork",
     "#responsive", "#modules", "#sponsors"
   ];
 
