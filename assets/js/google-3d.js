@@ -1,7 +1,7 @@
-// assets/js/google-3d.js
-
-// 1. Setup Dasar Three.js
-const container = document.getElementById('canvas-container'); // Ganti dengan ID div canvas kamu di index.html
+// ==========================================
+// 1. SETUP DASAR THREE.JS
+// ==========================================
+const container = document.getElementById('canvas-container'); // Pastikan ID ini sesuai dengan yang ada di index.html
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -10,7 +10,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 if (container) container.appendChild(renderer.domElement);
 
-// Tambahkan pencahayaan
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 scene.add(ambientLight);
 const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
@@ -18,65 +17,74 @@ directionalLight.position.set(5, 5, 5);
 scene.add(directionalLight);
 
 // ==========================================
-// 2. BAGIAN PERBAIKAN ANIMASI (DEKLARASI)
+// 2. VARIABEL GLOBAL UNTUK ANIMASI SCROLL
 // ==========================================
-const clock = new THREE.Clock(); // Wajib untuk mengatur kecepatan animasi
-let mixer; // Variabel global untuk mixer animasi
+let mixer;
+let action;
+let animationDuration = 0;
 
-// 3. Load Model 3D
+// ==========================================
+// 3. LOAD MODEL 3D
+// ==========================================
 const loader = new THREE.GLTFLoader();
 
 loader.load(
-    './assets/models/google.glb', // Path disesuaikan dengan struktur foldermu
+    './assets/models/google.glb', // Pastikan path ini benar mengarah ke modelmu
     (gltf) => {
         const model = gltf.scene;
         scene.add(model);
 
-        // ==========================================
-        // 4. BAGIAN PERBAIKAN ANIMASI (INISIALISASI)
-        // ==========================================
+        // Jika model memiliki animasi, set up mixer tapi JANGAN di-play otomatis
         if (gltf.animations && gltf.animations.length > 0) {
             mixer = new THREE.AnimationMixer(model);
+            action = mixer.clipAction(gltf.animations[0]);
             
-            // Ambil dan jalankan klip animasi index ke-0
-            const action = mixer.clipAction(gltf.animations[0]);
-            action.play();
-            console.log("Animasi berhasil dimuat dan dijalankan.");
+            // Simpan durasi total animasi untuk dipetakan dengan scroll
+            animationDuration = action.getClip().duration; 
+            console.log("Animasi scroll siap. Durasi:", animationDuration);
         } else {
-            console.warn("Peringatan: google.glb tidak memiliki data animasi (gltf.animations kosong).");
+            console.warn("Model tidak memiliki animasi.");
         }
     },
-    (xhr) => {
-        console.log((xhr.loaded / xhr.total * 100) + '% model ter-load');
-    },
-    (error) => {
-        console.error('Gagal memuat model:', error);
-    }
+    undefined,
+    (error) => console.error('Error loading model:', error)
 );
 
 camera.position.z = 5;
 
 // ==========================================
-// 5. BAGIAN PERBAIKAN ANIMASI (RENDER LOOP)
+// 4. RENDER LOOP (SINKRONISASI SCROLL)
 // ==========================================
 const animate = () => {
     requestAnimationFrame(animate);
 
-    // Hitung waktu (delta) dari frame terakhir
-    const delta = clock.getDelta();
+    // Jalankan logika scroll hanya jika mixer sudah siap
+    if (mixer && animationDuration > 0) {
+        // Hitung total tinggi halaman yang bisa di-scroll
+        const maxScroll = document.body.scrollHeight - window.innerHeight;
+        
+        // Cegah pembagian dengan nol jika halaman tidak bisa di-scroll
+        if (maxScroll > 0) {
+            // Dapatkan persentase scroll (0.0 di atas, 1.0 di paling bawah)
+            const scrollPercent = window.scrollY / maxScroll;
 
-    // Update mixer jika sudah diinisialisasi
-    if (mixer) {
-        mixer.update(delta);
+            // Petakan persentase ke detik animasi
+            const currentAnimationTime = scrollPercent * animationDuration;
+
+            // Paksa animasi berada di detik tersebut
+            mixer.setTime(currentAnimationTime);
+        }
     }
 
     renderer.render(scene, camera);
 };
 
-// Jalankan animasi
+// Mulai loop
 animate();
 
-// 6. Handle Resize Window
+// ==========================================
+// 5. RESPONSIVE RESIZE
+// ==========================================
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
