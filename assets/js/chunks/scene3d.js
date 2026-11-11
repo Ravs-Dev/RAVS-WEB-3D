@@ -1,84 +1,56 @@
-// assets/js/google-3d.js
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.181.0/+esm';
 
-// 1. Setup Dasar Three.js
-const container = document.getElementById('canvas-container'); // Ganti dengan ID div canvas kamu di index.html
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+export function initScene(){
+  const canvas=document.querySelector('#hero-canvas');
+  const fallback=document.querySelector('#css-orb');
+  if(!canvas)return;
 
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-if (container) container.appendChild(renderer.domElement);
+  try{
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(38,1,.1,100);
+    camera.position.z=7;
 
-// Tambahkan pencahayaan
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-directionalLight.position.set(5, 5, 5);
-scene.add(directionalLight);
+    const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.8));
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.1;
 
-// ==========================================
-// 2. BAGIAN PERBAIKAN ANIMASI (DEKLARASI)
-// ==========================================
-const clock = new THREE.Clock(); // Wajib untuk mengatur kecepatan animasi
-let mixer; // Variabel global untuk mixer animasi
+    scene.add(new THREE.AmbientLight(0xa4e9ff,1.45));
+    const key=new THREE.PointLight(0x68d7ff,40,18);key.position.set(3,3,4);scene.add(key);
+    const rim=new THREE.PointLight(0x166da8,26,15);rim.position.set(-4,-2,-2);scene.add(rim);
 
-// 3. Load Model 3D
-const loader = new THREE.GLTFLoader();
+    const group=new THREE.Group();scene.add(group);
+    const knot=new THREE.Mesh(
+      new THREE.TorusKnotGeometry(1.24,.36,170,28,2,5),
+      new THREE.MeshPhysicalMaterial({color:0x55c9f3,metalness:.72,roughness:.2,clearcoat:1,clearcoatRoughness:.14,emissive:0x062a42,emissiveIntensity:.55})
+    );
+    group.add(knot);
 
-loader.load(
-    './assets/models/google.glb', // Path disesuaikan dengan struktur foldermu
-    (gltf) => {
-        const model = gltf.scene;
-        scene.add(model);
+    const ring=new THREE.Mesh(
+      new THREE.TorusGeometry(1.9,.012,8,170),
+      new THREE.MeshBasicMaterial({color:0x8de7ff,transparent:true,opacity:.52})
+    );
+    ring.rotation.set(1.1,.48,.2);group.add(ring);
 
-        // ==========================================
-        // 4. BAGIAN PERBAIKAN ANIMASI (INISIALISASI)
-        // ==========================================
-        if (gltf.animations && gltf.animations.length > 0) {
-            mixer = new THREE.AnimationMixer(model);
-            
-            // Ambil dan jalankan klip animasi index ke-0
-            const action = mixer.clipAction(gltf.animations[0]);
-            action.play();
-            console.log("Animasi berhasil dimuat dan dijalankan.");
-        } else {
-            console.warn("Peringatan: google.glb tidak memiliki data animasi (gltf.animations kosong).");
-        }
-    },
-    (xhr) => {
-        console.log((xhr.loaded / xhr.total * 100) + '% model ter-load');
-    },
-    (error) => {
-        console.error('Gagal memuat model:', error);
-    }
-);
+    const count=420,positions=new Float32Array(count*3);
+    for(let i=0;i<count;i++){positions[i*3]=(Math.random()-.5)*8.5;positions[i*3+1]=(Math.random()-.5)*6;positions[i*3+2]=(Math.random()-.5)*4-1}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+    const particles=new THREE.Points(geometry,new THREE.PointsMaterial({color:0x8fe4ff,size:.018,transparent:true,opacity:.7}));
+    scene.add(particles);
 
-camera.position.z = 5;
+    let tx=0,ty=0,px=0,py=0;
+    window.addEventListener('pointermove',e=>{tx=(e.clientX/innerWidth-.5)*.55;ty=(e.clientY/innerHeight-.5)*.42},{passive:true});
 
-// ==========================================
-// 5. BAGIAN PERBAIKAN ANIMASI (RENDER LOOP)
-// ==========================================
-const animate = () => {
-    requestAnimationFrame(animate);
+    const resize=()=>{const w=canvas.clientWidth||canvas.parentElement.clientWidth,h=canvas.clientHeight||canvas.parentElement.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/Math.max(h,1);camera.updateProjectionMatrix()};
+    new ResizeObserver(resize).observe(canvas.parentElement);resize();
 
-    // Hitung waktu (delta) dari frame terakhir
-    const delta = clock.getDelta();
-
-    // Update mixer jika sudah diinisialisasi
-    if (mixer) {
-        mixer.update(delta);
-    }
-
-    renderer.render(scene, camera);
-};
-
-// Jalankan animasi
-animate();
-
-// 6. Handle Resize Window
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const clock=new THREE.Clock();
+    const render=()=>{const t=clock.getElapsedTime();px+=(tx-px)*.04;py+=(ty-py)*.04;group.rotation.x=py+(reduced?0:t*.07);group.rotation.y=px+(reduced?0:t*.12);ring.rotation.z=reduced?0:t*.1;particles.rotation.y=reduced?0:t*.012;renderer.render(scene,camera);requestAnimationFrame(render)};
+    fallback.hidden=true;render();
+  }catch(error){
+    console.warn('WebGL unavailable; using CSS fallback.',error);
+    canvas.hidden=true;
+  }
+}
